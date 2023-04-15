@@ -1,0 +1,72 @@
+package com.khoingyen.realworldapp.service.imlp;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+
+import com.khoingyen.realworldapp.entity.Article;
+import com.khoingyen.realworldapp.entity.User;
+import com.khoingyen.realworldapp.model.article.dto.ArticleDTOCreate;
+import com.khoingyen.realworldapp.model.article.dto.ArticleDTOResponse;
+import com.khoingyen.realworldapp.model.article.mapper.ArticleMapper;
+import com.khoingyen.realworldapp.repository.ArticleRepository;
+import com.khoingyen.realworldapp.service.ArticleService;
+import com.khoingyen.realworldapp.service.UserService;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class ArticleServiceImpl implements ArticleService {
+    private final ArticleRepository articleRepository;
+    private final UserService userService;
+
+    @Override
+    public Map<String, ArticleDTOResponse> createArticle(Map<String, ArticleDTOCreate> articleDTOCreateMap) {
+        ArticleDTOCreate articleDTOCreate = articleDTOCreateMap.get("article");
+
+        Article article = ArticleMapper.toArticle(articleDTOCreate);
+        User currentUser = userService.getUserLoggedIn();
+        article.setAuthor(currentUser);
+
+        article = articleRepository.save(article);
+        Map<String, ArticleDTOResponse> wrapper = new HashMap<>();
+        ArticleDTOResponse articleDTOResponse = ArticleMapper.toArticleDTOResponse(article, false, 0, false);
+        wrapper.put("article", articleDTOResponse);
+        return wrapper;
+    }
+
+    @Override
+    public Map<String, ArticleDTOResponse> getArticleBySlug(String slug) {
+        Article article = articleRepository.findBySlug(slug);
+        
+        Map<String, ArticleDTOResponse> wrapper = new HashMap<>();
+
+        //============= following =================
+
+        User userLoggedIn = getUserLoggedIn();
+
+        Optional<User> userOptional = userRepository.findByUsername(username);
+        if (userOptional.isEmpty()) {
+            throw new CustomNotFoundException(CustomError.builder().code("404").message("User not found").build());
+        }
+
+        User user = userOptional.get();
+        Set<User> followers = user.getFollowers();
+        boolean isFollowing = false;
+        for (User u : followers) {
+            if (u.getId() == userLoggedIn.getId()) {
+                isFollowing = true;
+                break;
+            }
+        }
+
+        //=========================================
+
+        ArticleDTOResponse articleDTOResponse = ArticleMapper.toArticleDTOResponse(article, false, 0, false);
+        wrapper.put("article", articleDTOResponse);
+        return wrapper;
+    }
+}
